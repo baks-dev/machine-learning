@@ -1,0 +1,41 @@
+{
+  "name": "baks-dev/machine-learning",
+  "description": "Модуль искусственного интеллекта",
+  "homepage": "https://github.com/baks-dev/machine-learning",
+  "keywords": [
+    "symfony",
+    "bundle",
+    "library",
+    "module",
+    "plugin",
+    "machine",
+    "learning",
+    "baksdev"
+  ],
+  "license": "MIT",
+  "type": "symfony-bundle",
+  "authors": [
+    {
+      "name": "Baks Development",
+      "email": "admin@baks.dev"
+    }
+  ],
+  "require": {
+    "php": ">=8.4",
+    "baks-dev/core": "^7.2"
+  },
+  "require-dev": {
+    "roave/security-advisories": "dev-latest"
+  },
+  "autoload": {
+    "psr-4": {
+      "BaksDev\\Machine\\Learning\\": ""
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "symfony/flex": true
+    }
+  }
+}
