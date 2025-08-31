@@ -27,12 +27,20 @@ namespace BaksDev\Machine\Learning\Commands;
 
 
 use BaksDev\Machine\Learning\Matrix\Brainy;
+use Phpml\Classification\SVC;
+use Phpml\FeatureExtraction\TfIdfTransformer;
+use Phpml\FeatureExtraction\TokenCountVectorizer;
+use Phpml\ModelManager;
+use Phpml\SupportVectorMachine\Kernel;
+use Phpml\Tokenization\WordTokenizer;
+use SebastianBergmann\CodeCoverage\Report\PHP;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+
 
 #[AsCommand(
     name: 'baks:machine:learning',
@@ -50,156 +58,409 @@ class MachineLearningCommand extends Command
         $this->addArgument('argument', InputArgument::OPTIONAL, 'Описание аргумента');
     }
 
+    protected function ___execute(InputInterface $input, OutputInterface $output): int
+    {
+        $io = new SymfonyStyle($input, $output);
+
+
+        // Параметры нейронной сети
+        $epochs = 30000;
+        $learning_rate = 0.05;
+        $hidden_layer_neurons = 12;
+        $activation_fun = 'sigmoid'; //  ['relu', 'sigmoid', 'tanh'])
+
+
+        $brain = new Brainy()
+            ->setLearningRate($learning_rate)
+            ->setActivationFun($activation_fun);
+
+
+        // Новые категории
+        $product_categories = [
+            'ноутбук',
+            'телефон',
+            'планшет',
+        ];
+
+        $request_types = [
+            'стоимость',
+            'наличие',
+            'общее',
+        ];
+
+        $all_categories = [];
+
+        // Создаем комбинированные категории
+        foreach($product_categories as $product)
+        {
+            foreach($request_types as $type)
+            {
+                $all_categories[] = $product.'_'.$type;
+            }
+        }
+
+        // Словарь
+        $vocabulary = [
+            'ноутбук', 'телефон', 'планшет',
+            'стоимость', 'цена', 'дорого', 'дешево', 'бюджет',
+            'наличие', 'есть', 'нет', 'склад', 'заказать', 'купить',
+        ];
+
+        // Обучающие данные
+        $training_data = [
+            ['текст' => 'ноутбук', 'продукт' => 'ноутбук', 'запрос' => 'общее'],
+            ['текст' => 'телефон', 'продукт' => 'телефон', 'запрос' => 'общее'],
+            ['текст' => 'планшет', 'продукт' => 'планшет', 'запрос' => 'общее'],
+
+            ['текст' => 'стоимость ноутбука', 'продукт' => 'ноутбук', 'запрос' => 'стоимость'],
+            ['текст' => 'цена на телефон', 'продукт' => 'телефон', 'запрос' => 'стоимость'],
+            ['текст' => 'сколько стоит планшет', 'продукт' => 'планшет', 'запрос' => 'стоимость'],
+
+            ['текст' => 'наличие ноутбуков', 'продукт' => 'ноутбук', 'запрос' => 'наличие'],
+            ['текст' => 'есть телефон', 'продукт' => 'телефон', 'запрос' => 'наличие'],
+            ['текст' => 'планшет в наличии', 'продукт' => 'планшет', 'запрос' => 'наличие'],
+
+            ['текст' => 'ноутбук купить', 'продукт' => 'ноутбук', 'запрос' => 'общее'],
+            ['текст' => 'дешевый телефон', 'продукт' => 'телефон', 'запрос' => 'стоимость'],
+            ['текст' => 'планшет на складе', 'продукт' => 'планшет', 'запрос' => 'наличие'],
+        ];
+
+
+        // Преобразование данных
+        $inputs = [];
+        $outputs = [];
+
+        foreach($training_data as $item)
+        {
+            $input_vector = $this->textToVector($item['текст'], $vocabulary);
+
+            // Создаем комбинированный выходной вектор
+            $category_index = array_search($item['продукт'].'_'.$item['запрос'], $all_categories);
+            $output_vector = array_fill(0, count($all_categories), 0);
+            $output_vector[$category_index] = 1;
+
+            $inputs[] = $input_vector;
+            $outputs[] = $output_vector;
+        }
+
+        //dd($inputs);  /* TODO: удалить !!! */
+        //dd($outputs); /* TODO: удалить !!! */
+
+
+        // Инициализация весов
+        $input_neurons = count($vocabulary);
+        $output_neurons = count($all_categories);
+
+        $w1 = $brain->getRandMatrix($input_neurons, $hidden_layer_neurons);
+        $w2 = $brain->getRandMatrix($hidden_layer_neurons, $output_neurons);
+        $b1 = $brain->getRandMatrix($hidden_layer_neurons, 1);
+        $b2 = $brain->getRandMatrix($output_neurons, 1);
+
+
+        // Обучение модели
+        for($i = 0; $i < $epochs; $i++)
+        {
+            foreach($inputs as $index => $inp)
+            {
+                $input_col = $brain->arrayTranspose($inp);
+                $output_col = $brain->arrayTranspose($outputs[$index]);
+
+                // Прямое распространение
+                $forward = $brain->forward($input_col, $w1, $b1, $w2, $b2);
+
+                // Обратное распространение
+                $new_weights = $brain->backPropagation(
+                    $forward,
+                    $input_col,
+                    $output_col,
+                    $w1, $w2, $b1, $b2,
+                );
+
+                $w1 = $new_weights['w1'];
+                $w2 = $new_weights['w2'];
+                $b1 = $new_weights['b1'];
+                $b2 = $new_weights['b2'];
+            }
+        }
+
+
+        // Тестирование модели
+        $test_phrases = [
+            'ноутбук',
+            'телефон',
+            'планшет',
+            'цена ноутбука',
+            'стоимость телефона',
+            'сколько стоит планшет',
+            'есть ноутбук',
+            'наличие телефона',
+            'планшет в наличии',
+            'бюджетный телефон',
+        ];
+
+
+        echo "<h2>Результаты классификации:</h2>";
+
+        foreach($test_phrases as $phrase)
+        {
+            $vector = $this->textToVector($phrase, $vocabulary);
+            $input_col = $brain->arrayTranspose($vector);
+
+            $prediction = $brain->forward($input_col, $w1, $b1, $w2, $b2);
+            $result = $prediction['A'];
+
+            // Преобразуем результат в плоский массив
+            $flat_result = [];
+            foreach($result as $row)
+            {
+                $flat_result = array_merge($flat_result, $row);
+            }
+
+            // Находим лучшую категорию
+            $best_index = array_search(max($flat_result), $flat_result);
+            $best_category = $all_categories[$best_index];
+
+            // Разбиваем категорию на составляющие
+            [$product, $request_type] = explode('_', $best_category);
+
+            // Готовим ответы
+            $responses = [
+                'стоимость' => [
+                    'ноутбук' => 'Стоимость ноутбуков: от 20 000 до 150 000 руб.',
+                    'телефон' => 'Цены на телефоны: от 5 000 до 100 000 руб.',
+                    'планшет' => 'Планшеты доступны по цене от 10 000 до 80 000 руб.',
+                ],
+                'наличие' => [
+                    'ноутбук' => 'Ноутбуки в наличии: 15 моделей на складе',
+                    'телефон' => 'Телефоны доступны: 25 моделей в наличии',
+                    'планшет' => 'Планшеты на складе: 10 моделей готовы к отгрузке',
+                ],
+                'общее' => [
+                    'ноутбук' => 'Ноутбуки: мощные устройства для работы и игр',
+                    'телефон' => 'Смартфоны: лучшие модели с отличной камерой',
+                    'планшет' => 'Планшеты: идеальные устройства для чтения и серфинга',
+                ],
+            ];
+
+            // Формируем ответ
+            $response = $responses[$request_type][$product];
+
+            echo "$phrase → Продукт: $product, Запрос: $request_type".PHP_EOL;
+            echo "Ответ: $response".PHP_EOL;
+
+            // Дополнительная информация о вероятностях
+            $probs = array_map(fn($v) => round($v * 100, 1), $flat_result);
+            //echo "Вероятности: ".json_encode(array_combine($all_categories, $probs), JSON_PRETTY_PRINT).PHP_EOL.PHP_EOL;
+
+            echo PHP_EOL;
+        }
+
+
+        return Command::SUCCESS;
+    }
+
+
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
 
-        dd(46546546); /* TODO: удалить !!! */
+
+        // Параметры нейронной сети
+        $epochs = 30000; // 20000;
+        $learning_rate = 0.05;
+        $hidden_layer_neurons = 8;
+        $activation_fun = 'relu'; // ['relu', 'sigmoid', 'tanh']
 
 
-        // tanh     : 30000   0.01    3   -1
-        // sigmoid  : 30000   0.01    3   -1
-        // relu     : 3000    0.01    3   0
-
-        // choose the tot number of epochs
-        $epochs = 30000;
-        // choose the learning rate
-        $learning_rate = 0.001;
-        // numbers of hidden neurons of the first (and only one) layer
-        $hidden_layer_neurons = 3;
-        // activation functions: relu , tanh , sigmoid
-        $activation_fun = 'relu';
-
-        $brain = $this->BrainyService
+        $brain = new Brainy()
             ->setLearningRate($learning_rate)
             ->setActivationFun($activation_fun);
 
-        // Это матрица ввода XOR
-        // Не забудьте заменить нули на -1, когда вы используете Tanh или Sigmoid
-        $xor_in = [
-            [0, 0],
-            [0, 1],
-            [1, 0],
-            [1, 1],
-        ];
 
-        // Это выход XOR
-        // Не забудьте заменить нули на -1, когда вы используете Tanh или Sigmoid
-        $xor_out = [
-            [1],
-            [0],
-            [0],
-            [1],
+        // Словарь и категории
+        $categories = [
+            'ноутбук',
+            'телефон',
+            'планшет',
+            'стоимость',
+            'наличие',
         ];
 
 
-        $input_neurons = count($xor_in[0]);
-        $output_neurons = count($xor_out[0]);
-
-        // getting the W1 weights random matrix (layer between input and the hidden layer) with size 2 x $hidden_layer_neurons
-        $w1 = $w1_before = $brain->getRandMatrix($input_neurons, $hidden_layer_neurons);
-
-        // getting the W2 weights random vector (layer between hidden layer and output) with size $hidden_layer_neurons x 1
-        $w2 = $w2_before = $brain->getRandMatrix($hidden_layer_neurons, $output_neurons);
-
-        // getting the B1 bies random vector with size $hidden_layer_neurons
-        $b1 = $b1_before = $brain->getRandMatrix($hidden_layer_neurons, 1);
-
-        // getting the B2 bies random vector. The size is 1x1 because there is only one output neuron
-        $b2 = $b2_before = $brain->getRandMatrix($output_neurons, 1);
-
-
-        $w1 = $w1_before = [
-            [-0.43, -0.21, -0.58],
-            [-0.05, 0.84, -0.07],
-        ];
-
-        $b1 = $b1_before = [
-            [-0.86],
-            [-0.76],
-            [0.93],
-        ];
-
-        $w2 = $w2_before = [
-            [0.61],
-            [0.02],
-            [0.94],
-        ];
-        $b2 = $b1_before = [
-            [-0.88],
+        $vocabulary = [
+            'ноутбук', 'телефон', 'планшет', 'купить', 'продать', 'стоимость', 'наличие',
+            'нужен', 'хочу', 'срочно', 'новый', 'мощный',
         ];
 
 
-        // this is for the chart
-        $graph = [];
-        $denom = 0;
-        $correct = 0;
-        $points_checker = $epochs / 100 * 4;
-        if($points_checker < 10)
-            $points_checker = 10;
+        // Подготовка данных
+        $training_data = [
+            ['текст' => 'ноутбук', 'категория' => 'ноутбук'],
+            ['текст' => 'телефон', 'категория' => 'телефон'],
+            ['текст' => 'планшет', 'категория' => 'планшет'],
 
 
-        // preparing the arrays
-        foreach($xor_in as $index => $input)
+            ['текст' => 'купить ноутбук', 'категория' => 'ноутбук'],
+            ['текст' => 'хочу мощный телефон', 'категория' => 'ноутбук'],
+
+
+            ['текст' => 'продать телефон', 'категория' => 'телефон'],
+            ['текст' => 'наличие телефон', 'категория' => 'телефон'],
+
+            ['текст' => 'купить планшет', 'категория' => 'планшет'],
+            ['текст' => 'стоимость планшет', 'категория' => 'планшет'],
+
+        ];
+
+
+        // Преобразование данных
+        $inputs = [];
+        $outputs = [];
+
+        foreach($training_data as $item)
         {
-            $xor_in[$index] = $brain->arrayTranspose($input);
-            $xor_out[$index] = $brain->arrayTranspose($xor_out[$index]);
+            $input_vector = $this->textToVector($item['текст'], $vocabulary);
+            $output_vector = array_map(fn($cat) => (int) ($cat === $item['категория']), $categories);
+
+            $inputs[] = $input_vector;
+            $outputs[] = $output_vector;
         }
 
+        // Инициализация весов
+        $input_neurons = count($vocabulary);
+        $output_neurons = count($categories);
 
-        $execution_start_time = microtime(true);
+        $w1 = $brain->getRandMatrix($input_neurons, $hidden_layer_neurons);
+        $w2 = $brain->getRandMatrix($hidden_layer_neurons, $output_neurons);
+        $b1 = $brain->getRandMatrix($hidden_layer_neurons, 1);
+        $b2 = $brain->getRandMatrix($output_neurons, 1);
 
+        // Обучение модели
         for($i = 0; $i < $epochs; $i++)
         {
-            foreach($xor_in as $index => $input)
+            foreach($inputs as $index => $input)
             {
-                // forward the input and get the output
-                $forward_response = $brain->forward($input, $w1, $b1, $w2, $b2);
+                $input_col = $brain->arrayTranspose($input);
+                $output_col = $brain->arrayTranspose($outputs[$index]);
 
-                // backprotagating the error and finding the new weights and biases
-                $new_setts = $brain->backPropagation($forward_response, $input, $xor_out[$index], $w1, $w2, $b1, $b2);
-                $w1 = $new_setts['w1'];
-                $w2 = $new_setts['w2'];
-                $b1 = $new_setts['b1'];
-                $b2 = $new_setts['b2'];
+                // Прямое распространение
+                $forward = $brain->forward($input_col, $w1, $b1, $w2, $b2);
 
-                // this is only for che accuracy chart
-                $f1 = round($brain->getScalarValue($forward_response['A']), 2);
-                $f2 = round($brain->getScalarValue($xor_out[$index]), 2);
-                if($f2 < 0)
-                    $f2 = 0;
-                if($f1 == $f2)
-                    $correct++;
-                $denom++;
+                // Обратное распространение
+                $new_weights = $brain->backPropagation(
+                    $forward,
+                    $input_col,
+                    $output_col,
+                    $w1, $w2, $b1, $b2,
+                );
 
-            } // end foreach
+                $w1 = $new_weights['w1'];
+                $w2 = $new_weights['w2'];
+                $b1 = $new_weights['b1'];
+                $b2 = $new_weights['b2'];
+            }
+        }
 
-            // this is only for che accuracy chart
-            if(!($i % $points_checker))
+        // Тестирование модели
+        $test_phrases = [
+            'ноутбук',
+            'телефон',
+            'планшет',
+            'купить ноутбук',
+            'продать планшет',
+            'мне нужен телефон',
+            'какой телефон посоветуйте',
+            'игровой ноутбук',
+            'игровой телефон',
+            'сколько в наличии телефон',
+            'сколько стоит телефон',
+        ];
+
+
+        echo "<h2>Результаты классификации:</h2>".PHP_EOL;
+
+        foreach($test_phrases as $phrase)
+        {
+            $vector = $this->textToVector($phrase, $vocabulary);
+            $input_col = $brain->arrayTranspose($vector);
+
+            $prediction = $brain->forward($input_col, $w1, $b1, $w2, $b2);
+            $result = $prediction['A'];
+
+            // Преобразуем результат в плоский массив
+            $flat_result = [];
+            foreach($result as $row)
             {
-                $graph[] = $rate = $correct / $denom;
-                $denom = 0;
-                $correct = 0;
+                $flat_result = array_merge($flat_result, $row);
             }
 
-        } // end for $epochs
+            $category_index = array_search(max($flat_result), $flat_result);
+            $category = $categories[$category_index];
+
+            // Ответы для категорий
+            $responses = [
+                'ноутбук' => 'Ноутбуки: мощные устройства для работы и игр',
+                'телефон' => 'Смартфоны: лучшие модели с отличной камерой',
+                'планшет' => 'Планшеты: идеальные устройства для чтения и серфинга',
+            ];
 
 
-        $execution_time = round(microtime(true) - $execution_start_time, 2);
-
-
-        $g_labes = $g_vals = '';
-        foreach($graph as $num => $val)
-        {
-            $g_labes .= ($num * $points_checker).',';
-            $g_vals .= (round($val, 2)).',';
+            echo $phrase.PHP_EOL;
+            echo "( контекст $category ): {$responses[$category]}".PHP_EOL;
+            echo "Проценты: ".json_encode($flat_result).PHP_EOL.PHP_EOL;
         }
-        $g_labes = trim($g_labes, ',');
-        $g_vals = trim($g_vals, ',');
+
+        dd('----------------------------------------------------------'); /* TODO: удалить !!! */
 
 
         $io->success('baks:machine:learning');
 
         return Command::SUCCESS;
     }
+
+
+    /**
+     * Функция, которая преобразует строку в числовой вектор
+     */
+    function textToVector($text, $vocabulary)
+    {
+
+        $vector = array_fill(0, count($vocabulary), 0);
+        $words = explode(' ', mb_strtolower($text));
+
+        foreach($words as $word)
+        {
+            // Поиск частичных совпадений
+            foreach($vocabulary as $index => $vocabWord)
+            {
+                if(strpos($word, $vocabWord) !== false)
+                {
+                    $vector[$index] = 1;
+                }
+            }
+        }
+
+        return $vector;
+
+
+        //        /** Текст поиска */
+        //        $text = strtolower($text);
+        //        $words = explode(' ', $text);
+        //
+        //        /** Строим вектор согласно словарному запасу */
+        //        $vector = array_fill(0, count($vocabulary), 0);
+        //
+        //        /** Присваиваем вектору индекс слов */
+        //        foreach($words as $word)
+        //        {
+        //            if(($index = array_search($word, $vocabulary)) !== false)
+        //            {
+        //                $vector[$index] = 1;
+        //            }
+        //        }
+        //
+        //        return $vector;
+    }
+
+
 }

@@ -135,15 +135,22 @@ class Matrix
         foreach($matrix as $row_number => $row)
         {
             $row_somm = 0;
+
             foreach($row as $col_number => $value)
             {
                 $row_somm += exp($value);
             }
+
             foreach($row as $col_number => $value)
             {
                 if($row_somm == 0)
+                {
                     $softmaxed[$row_number][$col_number] = isset($softmaxed[$row_number][$col_number]) ? $softmaxed[$row_number][$col_number] : 0;
-                else $softmaxed[$row_number][$col_number] = exp($value) / $row_somm;
+                }
+                else
+                {
+                    $softmaxed[$row_number][$col_number] = exp($value) / $row_somm;
+                }
             }
         }
 
@@ -213,14 +220,24 @@ class Matrix
     public function extractValue($val)
     {
         if(is_numeric($val))
+        {
             return $val;
+        }
 
         if(count($val) > 1)
+        {
             throw new Exception('Not correct value! count($val) > 1 ');
-        if(!isset($val[0]))
+        }
+
+        if(false === isset($val[0]))
+        {
             throw new Exception('Not correct value! !isset($val[0])');
+        }
+
         if(count($val[0]) > 1)
+        {
             throw new Exception('Not correct value! count($val[0]) > 1');
+        }
 
         return $val[0][0];
     }
@@ -237,11 +254,15 @@ class Matrix
     {
         // checking if the two matrices have the same dimentions
         $rows_m1 = count($m1);
-        $cols_m1 = count($m1[0]);
+        $cols_m1 = count(current($m1));
+
         $rows_m2 = count($m2);
-        $cols_m2 = count($m2[0]);
-        if(($cols_m1 != $cols_m2) or ($rows_m1 != $rows_m2))
+        $cols_m2 = count(current($m2));
+
+        if(($cols_m1 !== $cols_m2) || ($rows_m1 !== $rows_m2))
+        {
             throw new Exception('The matrices cannot be added!');
+        }
 
         $sum = [];
 
@@ -271,8 +292,11 @@ class Matrix
         $cols_m1 = count($m1[0]);
         $rows_m2 = count($m2);
         $cols_m2 = count($m2[0]);
+
         if(($cols_m1 != $cols_m2) or ($rows_m1 != $rows_m2))
+        {
             throw new Exception('The matrices cannot be subtracted!');
+        }
 
         $sum = [];
 
@@ -303,8 +327,11 @@ class Matrix
         $cols_m1 = count($m1[0]);
         $rows_m2 = count($m2);
         $cols_m2 = count($m2[0]);
+
         if(($cols_m1 != $cols_m2) or ($rows_m1 != $rows_m2))
+        {
             throw new Exception('The matrices cannot be multiplied Value by Value!');
+        }
 
         $sum = [];
 
@@ -329,32 +356,37 @@ class Matrix
     public function arrayArgmax($array)
     {
         if(!count($array))
+        {
             return false;
+        }
 
         $res = array_keys($array, max($array));
-        if(isset($res[0]))
-            return $res[0];
 
-        return false;
+        return $res[0] ?? false;
     }
 
 
     /**
-     * It returns the DOT product of two matrices
+     * Он возвращает точечный продукт двух матриц
      *
      * @param array $m1 first matrix
      * @param array $m2 second matrix
+     *
      * @return array
      */
     public function matrixDotProduct($m1, $m2)
     {
         // checking if the matrices can be multiplied
         $rows_m1 = count($m1);
-        $cols_m1 = count($m1[0]);
+        $cols_m1 = count(current($m1));
+
         $rows_m2 = count($m2);
-        $cols_m2 = count($m2[0]);
-        if($cols_m1 != $rows_m2)
+        $cols_m2 = count(current($m2));
+
+        if($cols_m1 !== $rows_m2)
+        {
             throw new Exception('The matrices cannot be multiplied!');
+        }
 
         $prod = [];
 
@@ -363,6 +395,7 @@ class Matrix
             for($j = 0; $j < $cols_m2; $j++)
             {
                 $prod[$i][$j] = 0;
+
                 for($k = 0; $k < $rows_m2; $k++)
                 {
                     $prod[$i][$j] += $m1[$i][$k] * $m2[$k][$j];
@@ -406,7 +439,6 @@ class Matrix
     {
         if(is_array($array[0]))
         {
-            //return $array;
             throw new Exception('$array is not an array of numbers!');
         }
 
@@ -436,14 +468,20 @@ class Matrix
         $cols_m1 = count($m1[0]);
         $rows_m2 = count($m2);
         $cols_m2 = count($m2[0]);
-        if($rows_m1 != $rows_m2)
+
+        if($rows_m1 !== $rows_m2)
+        {
             throw new Exception('The matrix have different rows number!');
-        if(($cols_m1 != 1) and ($cols_m2 != 1))
+        }
+
+        if(($cols_m1 !== 1) && ($cols_m2 !== 1))
+        {
             throw new Exception('One of the matrix must be a vesctor!');
+        }
 
         // checking who is the matrix and vector between $m1 or $m1
-        $matrix = ($cols_m1 != 1) ? $m1 : $m2;
-        $vector = ($cols_m1 == 1) ? $m1 : $m2;
+        $matrix = ($cols_m1 !== 1) ? $m1 : $m2;
+        $vector = ($cols_m1 === 1) ? $m1 : $m2;
 
         $new = [];
 
@@ -474,8 +512,11 @@ class Matrix
         {
             foreach($matrix as $line => $row)
             {
-                if(!isset($new[$line]))
+                if(false === isset($new[$line]))
+                {
                     $new[$line][0] = 0;
+                }
+
                 foreach($row as $element)
                 {
                     $new[$line][0] += $element;
@@ -495,11 +536,14 @@ class Matrix
      */
     public function getScalarValue($matrix): float|Matrix
     {
-        if(is_array($matrix))
+        if(true === is_array($matrix))
         {
             if(is_array($matrix[0]))
+            {
                 return $matrix[0][0];
-            else return $matrix[0];
+            }
+
+            return $matrix[0];
         }
 
         return $matrix;
@@ -516,17 +560,23 @@ class Matrix
     public function getRandMatrix($rows, $cols)
     {
         if($rows < 1)
+        {
             throw new Exception('Matrix ROWS must be greater than 0!');
+        }
+
         if($cols < 1)
+        {
             throw new Exception('Matrix COLUMNS must be greater than 0!');
+        }
 
         $matrix = [];
         $aaa_test = 0;
+
         for($r = 0; $r < $rows; $r++)
         {
             for($c = 0; $c < $cols; $c++)
             {
-                $matrix[$r][$c] = rand(-1000000, 1000000) / 1000000;
+                $matrix[$r][$c] = random_int(-1000000, 1000000) / 1000000;
             }
         }
 
@@ -544,9 +594,14 @@ class Matrix
     public function getZeroMatrix($rows, $cols)
     {
         if($rows < 1)
+        {
             throw new Exception('Matrix ROWS must be greater than 0!');
+        }
+
         if($cols < 1)
+        {
             throw new Exception('Matrix COLUMNS must be greater than 0!');
+        }
 
         $matrix = [];
 

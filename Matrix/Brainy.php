@@ -31,6 +31,7 @@ final class Brainy extends Matrix
 {
 
     private $learning_rate = 0.01;
+
     private $activation_fun = 'relu';
 
 
@@ -82,12 +83,13 @@ final class Brainy extends Matrix
     /**
      * Forward propagation: it gets the output (matrix A)
      *
-     * @param array $input is the input vector
-     * @param array $w1 the weights matrix (between input and hidden layer)
-     * @param array $b1 the bias vector (between input and hidden layer)
-     * @param array $w2 the weights matrix (between the hidden layer and the output)
-     * @param array $b2 the bias vector (between the hidden layer and the output)
-     * @return array        it returns the matrix A, which is the final output, and Z, which is the output of the hidden layer
+     * @param array $input Входной вектор
+     * @param array $w1 Матрица веса (между входным и скрытым слоем)
+     * @param array $b1 вектор смещения (между входным и скрытым слоем)
+     * @param array $w2 Матрица веса (между скрытым слоем и выходом)
+     * @param array $b2 вектор смещения (между скрытым слоем и выходом)
+     *
+     * @return array        Он возвращает матрицу A, которая является конечным выводом, и z, который является выходом скрытого слоя
      */
     public function forward($input, $w1, $b1, $w2, $b2)
     {
